@@ -2,14 +2,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"syscall"
 	"unsafe"
 )
-
-var tapFile = "/dev/net/tap"
 
 const (
 	SizeOfIfReq = 40
@@ -17,11 +17,58 @@ const (
 	BUFFERSIZE  = 1522
 )
 
+var (
+	tapFile = "/dev/net/tap"
+	ARP     = EtherType{0x08, 0x06}
+)
+
+type EtherType [2]byte
+
+func (e EtherType) String() string {
+	switch e {
+	case ARP:
+		return "ARP"
+	}
+	out := make([]byte, 4)
+	hex.Encode(out, e[:])
+	return fmt.Sprintf("%s", string(out))
+}
+
+type EthernetFrame struct {
+	Dmac      net.HardwareAddr
+	Smac      net.HardwareAddr
+	EtherType EtherType
+	Payload   []byte
+}
+
+func (f *EthernetFrame) String() string {
+	return fmt.Sprintf("src %s dest %s type %s payload size %d", f.Smac, f.Dmac, f.EtherType, len(f.Payload))
+}
+
+func (f *EthernetFrame) FromBytes(b []byte) *EthernetFrame {
+	return &EthernetFrame{
+		Dmac:      net.HardwareAddr(b[:6:6]),
+		Smac:      net.HardwareAddr(b[6:12:12]),
+		EtherType: EtherType{b[12], b[13]},
+		Payload:   b[14:],
+	}
+}
+
+func handleFrame(f *EthernetFrame) error {
+	switch f.EtherType {
+	case ARP:
+		return handleARP(f)
+	default:
+		fmt.Printf("Not implemented. Ignoring.\n")
+	}
+	return nil
+}
+
 type TAP struct {
 	devFile *os.File
 }
 
-func (t *TAP) Loop(ch chan<- []byte) {
+func (t *TAP) Loop(ch chan<- *EthernetFrame) {
 	for {
 		buffer := make([]byte, BUFFERSIZE)
 		n, err := t.devFile.Read(buffer)
@@ -31,7 +78,8 @@ func (t *TAP) Loop(ch chan<- []byte) {
 		}
 		if n > 0 {
 			fmt.Printf("Read %d bytes from device\n", n)
-			ch <- buffer[:n:n]
+			f := &EthernetFrame{}
+			ch <- f.FromBytes(buffer[:n:n])
 		}
 	}
 }
