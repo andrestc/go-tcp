@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 )
 
@@ -17,6 +18,23 @@ func main() {
 	ch := make(chan []byte)
 	go tap.Loop(ch)
 	for b := range ch {
-		fmt.Printf("%d\n", b)
+		parseEthernetFrame(b)
 	}
+}
+
+type EthernetFrame struct {
+	Dmac net.HardwareAddr
+	Smac net.HardwareAddr
+}
+
+func (f *EthernetFrame) String() string {
+	return fmt.Sprintf("src %s dest %s", f.Smac, f.Dmac)
+}
+
+func parseEthernetFrame(b []byte) {
+	frame := &EthernetFrame{
+		Dmac: net.HardwareAddr(b[:6:6]),
+		Smac: net.HardwareAddr(b[6:12:12]),
+	}
+	fmt.Printf("Parsed Ethernet frame: %s\n", frame)
 }
