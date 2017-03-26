@@ -18,6 +18,8 @@ func main() {
 	go tap.Loop(ch)
 	for f := range ch {
 		fmt.Printf("Ethernet frame: %s\n", f)
-		handleFrame(f)
+		if err := handleFrame(f); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to handle frame: %s", err)
+		}
 	}
 }
