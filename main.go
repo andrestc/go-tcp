@@ -15,9 +15,9 @@ func main() {
 		os.Exit(1)
 	}
 	defer tap.Close()
-	ch := make(chan *EthernetFrame)
-	go tap.Loop(ch)
-	for f := range ch {
+	in := make(chan *EthernetFrame)
+	go tap.Loop(in)
+	for f := range in {
 		fmt.Printf("Ethernet frame: %s\n", f)
 		if err := handleFrame(f); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to handle frame: %s", err)
