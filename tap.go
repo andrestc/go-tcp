@@ -72,18 +72,25 @@ type TAP struct {
 	io.ReadWriteCloser
 }
 
-func (t *TAP) Loop(ch chan<- *EthernetFrame) {
+func (t *TAP) ReceiveLoop(ch chan<- *EthernetFrame, done chan bool) {
 	for {
-		buffer := make([]byte, BUFFERSIZE)
-		n, err := t.Read(buffer)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to read dev file: %s", err)
-			continue
-		}
-		if n > 0 {
-			fmt.Printf("Read %d bytes from device\n", n)
-			f := &EthernetFrame{}
-			ch <- f.FromBytes(buffer[:n:n])
+		select {
+		case <-done:
+			fmt.Printf("Exiting receive loop\n")
+			close(ch)
+			return
+		default:
+			buffer := make([]byte, BUFFERSIZE)
+			n, err := t.Read(buffer)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "failed to read dev file: %s", err)
+				continue
+			}
+			if n > 0 {
+				fmt.Printf("Read %d bytes from device\n", n)
+				f := &EthernetFrame{}
+				ch <- f.FromBytes(buffer[:n:n])
+			}
 		}
 	}
 }
