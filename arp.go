@@ -8,7 +8,20 @@ import (
 
 const (
 	ARPIPv4 = ARPProtoType(0x0800)
+
+	ARPEthernet = ARPHWType(0x0001)
 )
+
+type ARPHWType uint16
+
+func (h ARPHWType) String() string {
+	switch h {
+	case ARPEthernet:
+		return "Ethernet"
+	default:
+		return fmt.Sprintf("%d", h)
+	}
+}
 
 type ARPProtoType uint16
 
@@ -22,7 +35,7 @@ func (p ARPProtoType) String() string {
 }
 
 type ARPPackage struct {
-	HWType    uint16
+	HWType    ARPHWType
 	ProtoType ARPProtoType
 	HWSize    uint8
 	ProtoSize uint8
@@ -45,7 +58,7 @@ func (p *ARPipv4) String() string {
 }
 
 func (p *ARPPackage) FromBytes(b []byte) {
-	p.HWType = binary.BigEndian.Uint16(b[:2:2])
+	p.HWType = ARPHWType(binary.BigEndian.Uint16(b[:2:2]))
 	p.ProtoType = ARPProtoType(binary.BigEndian.Uint16(b[2:4:4]))
 	p.HWSize = uint8(b[4])
 	p.ProtoSize = uint8(b[5])
@@ -67,7 +80,7 @@ func (p *ARPPackage) IPv4Data() *ARPipv4 {
 }
 
 func (p *ARPPackage) String() string {
-	return fmt.Sprintf("[ARP]: layer %d (%d) proto %s (%d) op %d data [%s]",
+	return fmt.Sprintf("[ARP]: hw %s (%d) proto %s (%d) op %d data [%s]",
 		p.HWType, p.HWSize, p.ProtoType, p.ProtoSize, p.OpCode, p.IPv4Data(),
 	)
 }
@@ -76,5 +89,11 @@ func handleARP(f *EthernetFrame) error {
 	pkg := &ARPPackage{}
 	pkg.FromBytes(f.Payload)
 	fmt.Println(pkg)
+	if pkg.HWType != ARPEthernet {
+		return fmt.Errorf("unsuported HW type: %s", pkg.HWType)
+	}
+	if pkg.ProtoType != ARPIPv4 {
+		return fmt.Errorf("unsuported protocol: %s", pkg.ProtoType)
+	}
 	return nil
 }
