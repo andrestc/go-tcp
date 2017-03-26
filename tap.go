@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -18,8 +19,10 @@ const (
 )
 
 var (
-	tapFile = "/dev/net/tap"
-	ARP     = EtherType{0x08, 0x06}
+	tapFile    = "/dev/net/tap"
+	deviceAddr = "10.0.0.5"
+	devideCidr = "10.0.0.0/24"
+	ARP        = EtherType{0x08, 0x06}
 )
 
 type EtherType [2]byte
@@ -65,13 +68,14 @@ func handleFrame(f *EthernetFrame) error {
 }
 
 type TAP struct {
-	devFile *os.File
+	Addr string
+	io.ReadWriteCloser
 }
 
 func (t *TAP) Loop(ch chan<- *EthernetFrame) {
 	for {
 		buffer := make([]byte, BUFFERSIZE)
-		n, err := t.devFile.Read(buffer)
+		n, err := t.Read(buffer)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to read dev file: %s", err)
 			continue
@@ -117,7 +121,7 @@ func initTAP() (*TAP, error) {
 		tap.Close()
 		return nil, fmt.Errorf("failed to configure dev interface: %s", err)
 	}
-	return &TAP{devFile: tap}, nil
+	return &TAP{ReadWriteCloser: tap, Addr: deviceAddr}, nil
 }
 
 func configureDeviceInterface(dev string) error {
@@ -125,10 +129,10 @@ func configureDeviceInterface(dev string) error {
 	if err := setIfaceUp(dev); err != nil {
 		return fmt.Errorf("failed to set iface up: %s", err)
 	}
-	if err := setIfRoute(dev, "10.0.0.0/24"); err != nil {
+	if err := setIfRoute(dev, devideCidr); err != nil {
 		return fmt.Errorf("failed to set iface route: %s", err)
 	}
-	if err := setIfaceAddr(dev, "10.0.0.5"); err != nil {
+	if err := setIfaceAddr(dev, deviceAddr); err != nil {
 		return fmt.Errorf("failed to set iface addr: %s", err)
 	}
 	return nil

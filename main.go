@@ -14,6 +14,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to init TAP dev: %s", err)
 		os.Exit(1)
 	}
+	defer tap.Close()
 	ch := make(chan *EthernetFrame)
 	go tap.Loop(ch)
 	for f := range ch {
