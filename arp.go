@@ -10,6 +10,9 @@ const (
 	ARPIPv4 = ARPProtoType(0x0800)
 
 	ARPEthernet = ARPHWType(0x0001)
+
+	ARPRequest = uint16(1)
+	ARPReply   = uint16(2)
 )
 
 type ARPHWType uint16
@@ -95,5 +98,12 @@ func handleARP(f *EthernetFrame) error {
 	if pkg.ProtoType != ARPIPv4 {
 		return fmt.Errorf("unsuported protocol: %s", pkg.ProtoType)
 	}
+	if pkg.OpCode != ARPRequest {
+		return fmt.Errorf("unsuported ARP operation: %d", pkg.OpCode)
+	}
+	return replyARP(pkg)
+}
+
+func replyARP(p *ARPPackage) error {
 	return nil
 }
