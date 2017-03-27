@@ -37,7 +37,7 @@ func (p ARPProtoType) String() string {
 	}
 }
 
-type ARPPackage struct {
+type ARPFrame struct {
 	HWType    ARPHWType
 	ProtoType ARPProtoType
 	HWSize    uint8
@@ -60,7 +60,7 @@ func (p *ARPipv4) String() string {
 	return fmt.Sprintf("src %s %s dst %s %s", p.Smac, p.Sip, p.Dmac, p.Dip)
 }
 
-func (p *ARPPackage) FromBytes(b []byte) {
+func (p *ARPFrame) FromBytes(b []byte) {
 	p.HWType = ARPHWType(binary.BigEndian.Uint16(b[:2:2]))
 	p.ProtoType = ARPProtoType(binary.BigEndian.Uint16(b[2:4:4]))
 	p.HWSize = uint8(b[4])
@@ -69,7 +69,7 @@ func (p *ARPPackage) FromBytes(b []byte) {
 	p.Data = b[8:]
 }
 
-func (p *ARPPackage) IPv4Data() *ARPipv4 {
+func (p *ARPFrame) IPv4Data() *ARPipv4 {
 	if p.ProtoType == ARPIPv4 {
 		pSize := p.ProtoSize
 		return &ARPipv4{
@@ -82,14 +82,14 @@ func (p *ARPPackage) IPv4Data() *ARPipv4 {
 	return nil
 }
 
-func (p *ARPPackage) String() string {
+func (p *ARPFrame) String() string {
 	return fmt.Sprintf("[ARP]: hw %s (%d) proto %s (%d) op %d data [%s]",
 		p.HWType, p.HWSize, p.ProtoType, p.ProtoSize, p.OpCode, p.IPv4Data(),
 	)
 }
 
 func handleARP(f *EthernetFrame) error {
-	pkg := &ARPPackage{}
+	pkg := &ARPFrame{}
 	pkg.FromBytes(f.Payload)
 	fmt.Println(pkg)
 	if pkg.HWType != ARPEthernet {
@@ -104,6 +104,6 @@ func handleARP(f *EthernetFrame) error {
 	return replyARP(pkg)
 }
 
-func replyARP(p *ARPPackage) error {
+func replyARP(p *ARPFrame) error {
 	return nil
 }
