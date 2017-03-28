@@ -2,10 +2,8 @@ package netdev
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
 	"syscall"
@@ -24,78 +22,11 @@ var (
 	tapFile    = "/dev/net/tap"
 	deviceAddr = "10.0.0.5"
 	devideCidr = "10.0.0.0/24"
-	ARP        = EtherType{0x08, 0x06}
 )
-
-type EtherType [2]byte
-
-func (e EtherType) String() string {
-	switch e {
-	case ARP:
-		return "ARP"
-	}
-	out := make([]byte, 4)
-	hex.Encode(out, e[:])
-	return fmt.Sprintf("%s", string(out))
-}
-
-type EthernetFrame struct {
-	Dmac      net.HardwareAddr
-	Smac      net.HardwareAddr
-	EtherType EtherType
-	Payload   []byte
-}
-
-func (f *EthernetFrame) String() string {
-	return fmt.Sprintf("src %s dest %s type %s payload size %d", f.Smac, f.Dmac, f.EtherType, len(f.Payload))
-}
-
-func (f *EthernetFrame) FromBytes(b []byte) *EthernetFrame {
-	return &EthernetFrame{
-		Dmac:      net.HardwareAddr(b[:6:6]),
-		Smac:      net.HardwareAddr(b[6:12:12]),
-		EtherType: EtherType{b[12], b[13]},
-		Payload:   b[14:],
-	}
-}
 
 type TAP struct {
 	Addr string
 	io.ReadWriteCloser
-}
-
-func (t *TAP) ReceiveLoop(ch chan<- []byte, done chan bool) {
-	for {
-		select {
-		case <-done:
-			fmt.Printf("Exiting receive loop\n")
-			close(ch)
-			return
-		default:
-			buffer := make([]byte, BUFFERSIZE)
-			n, err := t.Read(buffer)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "failed to read dev file: %s", err)
-				continue
-			}
-			if n > 0 {
-				fmt.Printf("Read %d bytes from device\n", n)
-				ch <- buffer[:n:n]
-			}
-		}
-	}
-}
-
-func Handle(raw []byte) error {
-	f := &EthernetFrame{}
-	f.FromBytes(raw)
-	switch f.EtherType {
-	case ARP:
-		return arp.Handle(f.Payload)
-	default:
-		fmt.Printf("Type %s not implemented. Ignoring.\n", f.EtherType)
-	}
-	return nil
 }
 
 type ifReq struct {
@@ -132,6 +63,39 @@ func Init() (*TAP, error) {
 		return nil, fmt.Errorf("failed to configure dev interface: %s", err)
 	}
 	return &TAP{ReadWriteCloser: tap, Addr: deviceAddr}, nil
+}
+
+func (t *TAP) ReceiveLoop(ch chan<- []byte, done chan bool) {
+	for {
+		select {
+		case <-done:
+			fmt.Printf("Exiting receive loop\n")
+			close(ch)
+			return
+		default:
+			buffer := make([]byte, BUFFERSIZE)
+			n, err := t.Read(buffer)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "failed to read dev file: %s", err)
+				continue
+			}
+			if n > 0 {
+				fmt.Printf("Read %d bytes from device\n", n)
+				ch <- buffer[:n:n]
+			}
+		}
+	}
+}
+
+func Handle(raw []byte) error {
+	f := newFrame(raw)
+	switch f.EtherType {
+	case ARP:
+		return arp.Handle(f.Payload)
+	default:
+		fmt.Printf("Type %s not implemented. Ignoring.\n", f.EtherType)
+	}
+	return nil
 }
 
 func configureDeviceInterface(dev string) error {
