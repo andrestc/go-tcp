@@ -60,13 +60,15 @@ func (p *ARPipv4) String() string {
 	return fmt.Sprintf("src %s %s dst %s %s", p.Smac, p.Sip, p.Dmac, p.Dip)
 }
 
-func (p *ARPFrame) FromBytes(b []byte) {
-	p.HWType = ARPHWType(binary.BigEndian.Uint16(b[:2:2]))
-	p.ProtoType = ARPProtoType(binary.BigEndian.Uint16(b[2:4:4]))
-	p.HWSize = uint8(b[4])
-	p.ProtoSize = uint8(b[5])
-	p.OpCode = binary.BigEndian.Uint16(b[6:8:8])
-	p.Data = b[8:]
+func fromBytes(b []byte) *ARPFrame {
+	return &ARPFrame{
+		HWType:    ARPHWType(binary.BigEndian.Uint16(b[:2:2])),
+		ProtoType: ARPProtoType(binary.BigEndian.Uint16(b[2:4:4])),
+		HWSize:    uint8(b[4]),
+		ProtoSize: uint8(b[5]),
+		OpCode:    binary.BigEndian.Uint16(b[6:8:8]),
+		Data:      b[8:],
+	}
 }
 
 func (p *ARPFrame) IPv4Data() *ARPipv4 {
@@ -89,19 +91,18 @@ func (p *ARPFrame) String() string {
 }
 
 func Handle(f []byte) error {
-	pkg := &ARPFrame{}
-	pkg.FromBytes(f)
-	fmt.Println(pkg)
-	if pkg.HWType != ARPEthernet {
-		return fmt.Errorf("unsuported HW type: %s", pkg.HWType)
+	frame := fromBytes(f)
+	fmt.Println(frame)
+	if frame.HWType != ARPEthernet {
+		return fmt.Errorf("unsuported HW type: %s", frame.HWType)
 	}
-	if pkg.ProtoType != ARPIPv4 {
-		return fmt.Errorf("unsuported protocol: %s", pkg.ProtoType)
+	if frame.ProtoType != ARPIPv4 {
+		return fmt.Errorf("unsuported protocol: %s", frame.ProtoType)
 	}
-	if pkg.OpCode != ARPRequest {
-		return fmt.Errorf("unsuported ARP operation: %d", pkg.OpCode)
+	if frame.OpCode != ARPRequest {
+		return fmt.Errorf("unsuported ARP operation: %d", frame.OpCode)
 	}
-	return replyARP(pkg)
+	return replyARP(frame)
 }
 
 func replyARP(p *ARPFrame) error {
