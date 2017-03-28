@@ -93,7 +93,7 @@ func Handle(raw []byte) error {
 	case ARP:
 		return arp.Handle(f.Payload)
 	default:
-		fmt.Printf("Not implemented. Ignoring.\n")
+		fmt.Printf("Type %s not implemented. Ignoring.\n", f.EtherType)
 	}
 	return nil
 }
