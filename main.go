@@ -5,25 +5,24 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-)
 
-const verbosity = 0
+	"github.com/andrestc/go-tcp/netdev"
+)
 
 func main() {
 	fmt.Println("Launching go-tcp daemon")
-	tap, err := initTAP()
+	tap, err := netdev.Init()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to init TAP dev: %s", err)
 		os.Exit(1)
 	}
 	defer tap.Close()
 	done := make(chan bool)
-	in := make(chan *EthernetFrame)
+	in := make(chan []byte)
 	go handleSignals(done)
 	go tap.ReceiveLoop(in, done)
 	for f := range in {
-		fmt.Printf("Ethernet frame: %s\n", f)
-		if err := handleFrame(f); err != nil {
+		if err := netdev.Handle(f); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to handle frame: %s", err)
 		}
 	}

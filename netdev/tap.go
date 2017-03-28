@@ -1,4 +1,4 @@
-package main
+package netdev
 
 import (
 	"bytes"
@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"syscall"
 	"unsafe"
+
+	"github.com/andrestc/go-tcp/arp"
 )
 
 const (
@@ -57,22 +59,12 @@ func (f *EthernetFrame) FromBytes(b []byte) *EthernetFrame {
 	}
 }
 
-func handleFrame(f *EthernetFrame) error {
-	switch f.EtherType {
-	case ARP:
-		return handleARP(f)
-	default:
-		fmt.Printf("Not implemented. Ignoring.\n")
-	}
-	return nil
-}
-
 type TAP struct {
 	Addr string
 	io.ReadWriteCloser
 }
 
-func (t *TAP) ReceiveLoop(ch chan<- *EthernetFrame, done chan bool) {
+func (t *TAP) ReceiveLoop(ch chan<- []byte, done chan bool) {
 	for {
 		select {
 		case <-done:
@@ -88,11 +80,22 @@ func (t *TAP) ReceiveLoop(ch chan<- *EthernetFrame, done chan bool) {
 			}
 			if n > 0 {
 				fmt.Printf("Read %d bytes from device\n", n)
-				f := &EthernetFrame{}
-				ch <- f.FromBytes(buffer[:n:n])
+				ch <- buffer[:n:n]
 			}
 		}
 	}
+}
+
+func Handle(raw []byte) error {
+	f := &EthernetFrame{}
+	f.FromBytes(raw)
+	switch f.EtherType {
+	case ARP:
+		return arp.Handle(f.Payload)
+	default:
+		fmt.Printf("Not implemented. Ignoring.\n")
+	}
+	return nil
 }
 
 type ifReq struct {
@@ -101,7 +104,7 @@ type ifReq struct {
 	pad   [SizeOfIfReq - IFNAMSIZ - 2]byte
 }
 
-func initTAP() (*TAP, error) {
+func Init() (*TAP, error) {
 	fmt.Println("Initilazing TAP device.")
 	if _, err := os.Stat(tapFile); os.IsNotExist(err) {
 		fmt.Println("Creating tap device file")
@@ -159,9 +162,6 @@ func setIfRoute(dev, cidr string) error {
 
 func runCmd(command string, args ...string) error {
 	cmd := exec.Command(command, args...)
-	if verbosity > 0 {
-		fmt.Printf("running cmd: %#+v\n", cmd)
-	}
 	return cmd.Run()
 }
 

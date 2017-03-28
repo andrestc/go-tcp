@@ -1,4 +1,4 @@
-package main
+package arp
 
 import (
 	"encoding/binary"
@@ -88,9 +88,9 @@ func (p *ARPFrame) String() string {
 	)
 }
 
-func handleARP(f *EthernetFrame) error {
+func Handle(f []byte) error {
 	pkg := &ARPFrame{}
-	pkg.FromBytes(f.Payload)
+	pkg.FromBytes(f)
 	fmt.Println(pkg)
 	if pkg.HWType != ARPEthernet {
 		return fmt.Errorf("unsuported HW type: %s", pkg.HWType)
